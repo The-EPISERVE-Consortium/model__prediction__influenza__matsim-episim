@@ -1,0 +1,16 @@
+[project]
+name = "model-prediction-influenza-matsim-episim"
+version = "0.1.0"
+description = "EPISERVE adapter of the matsim-episim multi-season influenza scenarios (Cologne, Berlin)"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

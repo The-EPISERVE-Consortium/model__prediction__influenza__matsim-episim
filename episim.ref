@@ -1,0 +1,5 @@
+# The matsim-episim code this model is built from: repository and commit (a full SHA, not a branch).
+# The image clones exactly this commit; to update the model, push the change to matsim-episim and put its SHA here.
+# The commit must contain the --without-vaccination flag of GenerateInfluenzaConfig (Cologne and Berlin).
+repo=https://github.com/matsim-org/matsim-episim.git
+ref=05f017cc5310d7c0a4d628be20f1ae13aa0e35d1

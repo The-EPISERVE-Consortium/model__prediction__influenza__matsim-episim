@@ -1,0 +1,394 @@
+{
+  "@context": [
+    "https://schema.org/",
+    {
+      "episerve": "https://api.episerve.zib.de/schemas/model-card/v1#"
+    }
+  ],
+  "@type": "SoftwareApplication",
+  "conformsTo": "https://api.episerve.zib.de/schemas/model-card/v1.json",
+  "name": "model__prediction__influenza__matsim-episim",
+  "description": "Agent-based simulation of four influenza seasons (2022/23 to 2025/26) in Cologne or Berlin on MATSim mobility, with strains, immunity and vaccination.",
+  "url": "ghcr.io/the-episerve-consortium/model__prediction__influenza__matsim-episim",
+  "codeRepository": "https://github.com/The-EPISERVE-Consortium/model__prediction__influenza__matsim-episim",
+  "license": "AGPL-3.0-only",
+  "applicationCategory": "simulation",
+  "operatingSystem": "Linux",
+  "runtimePlatform": "Docker",
+  "author": [
+    {
+      "@type": "Organization",
+      "name": "VSP, TU Berlin"
+    }
+  ],
+  "episerve:task": {
+    "type": "forecast",
+    "frequency": "weekly",
+    "probabilistic": true,
+    "covariates": true,
+    "maxHorizon": 190,
+    "parameterRoles": {
+      "horizon": "prediction_length"
+    }
+  },
+  "episerve:parameters": {
+    "type": "object",
+    "required": [
+      "city"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "city": {
+        "type": "string",
+        "enum": [
+          "cologne",
+          "berlin"
+        ],
+        "description": "Scenario: Cologne (25 % sample, 588,124 agents) or Berlin (25 % sample, 1,207,780 agents)."
+      },
+      "prediction_length": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 190,
+        "default": 190,
+        "unit": "weeks",
+        "description": "Weeks to simulate from 2022-09-26 (Monday of ISO week 39/2022). 33 covers the first season, 190 all four seasons up to 2026-05-17."
+      },
+      "seeds": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10,
+        "default": 2,
+        "description": "Number of random seeds; the forecast interval is taken over the seeds."
+      },
+      "gamma": {
+        "type": "number",
+        "minimum": 0.05,
+        "maximum": 1.5,
+        "multipleOf": 0.05,
+        "default": 1.0,
+        "description": "Common calibration factor on the transmissibility of all strains; 1.0 is the calibrated configuration."
+      },
+      "vaccination": {
+        "type": "boolean",
+        "default": true,
+        "description": "Seasonal vaccination of the persons aged 60 and over with the local coverage of the KV-Impfsurveillance; false for the counterfactual without vaccination."
+      },
+      "tasks": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10,
+        "default": 1,
+        "description": "Simulations run in parallel. Each needs about 8 GB (Cologne) to 14 GB (Berlin) of memory."
+      }
+    },
+    "rules": [
+      "The simulated period always starts on 2022-09-26; the input data do not move the start, they shape the import of infections and the vaccination.",
+      "tasks must not exceed seeds to be useful; memory has to cover tasks times the memory of one simulation."
+    ]
+  },
+  "episerve:inputs": [
+    {
+      "file": "IfSG_Influenzafaelle.parquet",
+      "format": "application/vnd.apache.parquet",
+      "required": false,
+      "description": "EPISERVE dataset Q8399965930733 (RKI, laboratory-confirmed influenza notifications). Shapes the weekly import of infections over the four seasons. Without it the extract baked into the image is used.",
+      "columns": [
+        {
+          "name": "Meldewoche",
+          "role": "time",
+          "type": "isoWeek",
+          "description": "Reporting week; 2022-W38 to 2026-W21 must be present for the region."
+        },
+        {
+          "name": "Region_Id",
+          "role": "filter",
+          "type": "integer",
+          "requiredValues": [
+            5,
+            11
+          ],
+          "description": "5 (Nordrhein-Westfalen) is used for Cologne, 11 (Berlin) for Berlin."
+        },
+        {
+          "name": "Altersgruppe",
+          "role": "filter",
+          "type": "string",
+          "requiredValues": [
+            "00+"
+          ]
+        },
+        {
+          "name": "Fallzahl",
+          "role": "covariate",
+          "type": "integer",
+          "description": "Weekly notifications; only the shape matters, the level of the import is a constant of the scenario."
+        }
+      ]
+    },
+    {
+      "file": "VIW_FNT.parquet",
+      "format": "application/vnd.apache.parquet",
+      "required": false,
+      "description": "EPISERVE dataset Q4242040001970 (WHO FluNet, Germany). The sentinel detections split the import between the A subtype of the season and B/Victoria. Without it the extract baked into the image is used.",
+      "columns": [
+        {
+          "name": "ISO_WEEKSTARTDATE",
+          "role": "time",
+          "type": "date"
+        },
+        {
+          "name": "ORIGIN_SOURCE",
+          "role": "filter",
+          "type": "string",
+          "requiredValues": [
+            "SENTINEL"
+          ]
+        },
+        {
+          "name": "AH3",
+          "role": "covariate",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "AH1N12009",
+          "role": "covariate",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "ANOTSUBTYPED",
+          "role": "covariate",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "ANOTSUBTYPABLE",
+          "role": "covariate",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "INF_B",
+          "role": "covariate",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "SPEC_PROCESSED_NB",
+          "role": "other",
+          "type": "number",
+          "nullable": true
+        }
+      ]
+    },
+    {
+      "file": "KVIS_Impfquoten_Erwachsene.parquet",
+      "format": "application/vnd.apache.parquet",
+      "required": false,
+      "description": "EPISERVE dataset Q0602352424740 (RKI KV-Impfsurveillance). Influenza coverage of SK Köln (5315) or SK Berlin (11000) by age band and season; a season without data takes the last season with data. Without it the extract baked into the image is used.",
+      "columns": [
+        {
+          "name": "Berichtszeitpunkt",
+          "role": "time",
+          "type": "string",
+          "description": "Season, e.g. 2024/25."
+        },
+        {
+          "name": "Impfung",
+          "role": "filter",
+          "type": "string",
+          "requiredValues": [
+            "Influenza"
+          ]
+        },
+        {
+          "name": "Regionalschluessel_Kreis",
+          "role": "filter",
+          "type": "number",
+          "requiredValues": [
+            5315,
+            11000
+          ]
+        },
+        {
+          "name": "Zielgruppe",
+          "role": "group",
+          "type": "string",
+          "requiredValues": [
+            "Personen ab 60 Jahren",
+            "Personen mit Grunderkrankung"
+          ]
+        },
+        {
+          "name": "Altersgruppe",
+          "role": "group",
+          "type": "string"
+        },
+        {
+          "name": "Impfquote",
+          "role": "covariate",
+          "type": "number",
+          "nullable": true
+        },
+        {
+          "name": "Bevoelkerung_Gewicht",
+          "role": "other",
+          "type": "number",
+          "nullable": true
+        }
+      ]
+    }
+  ],
+  "episerve:outputs": [
+    {
+      "file": "predictions.tsv",
+      "format": "text/tab-separated-values",
+      "description": "One row per complete ISO week of the simulated period: weekly new cases in the city, scaled to the whole population, mean and 10th/90th percentile over the seeds.",
+      "columns": [
+        {
+          "name": "week",
+          "role": "time",
+          "type": "isoWeek"
+        },
+        {
+          "name": "week_start",
+          "role": "other",
+          "type": "date",
+          "description": "Monday of the week."
+        },
+        {
+          "name": "infections",
+          "role": "mean",
+          "type": "number",
+          "description": "New infections (all strains)."
+        },
+        {
+          "name": "infections_q10",
+          "role": "quantile",
+          "level": 0.1,
+          "type": "number"
+        },
+        {
+          "name": "infections_q90",
+          "role": "quantile",
+          "level": 0.9,
+          "type": "number"
+        },
+        {
+          "name": "symptomatic",
+          "role": "other",
+          "type": "number",
+          "description": "New symptomatic cases, mean over the seeds; symptomatic_q10 and symptomatic_q90 follow."
+        },
+        {
+          "name": "hospitalisations",
+          "role": "other",
+          "type": "number",
+          "description": "New hospitalisations (seriously sick), mean over the seeds; hospitalisations_q10 and hospitalisations_q90 follow."
+        },
+        {
+          "name": "critical",
+          "role": "other",
+          "type": "number",
+          "description": "New critical cases, mean over the seeds; critical_q10 and critical_q90 follow."
+        }
+      ]
+    },
+    {
+      "file": "simulation_weekly.parquet",
+      "format": "application/vnd.apache.parquet",
+      "description": "The weekly values of every seed (long by seed).",
+      "columns": [
+        {
+          "name": "seed",
+          "role": "group",
+          "type": "string"
+        },
+        {
+          "name": "week",
+          "role": "time",
+          "type": "isoWeek"
+        },
+        {
+          "name": "infections",
+          "role": "sample",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "file": "infections_by_strain.parquet",
+      "format": "application/vnd.apache.parquet",
+      "description": "Weekly new infections by transmission (imported infections not included) by strain and seed, for the strains of the scenario.",
+      "columns": [
+        {
+          "name": "seed",
+          "role": "group",
+          "type": "string"
+        },
+        {
+          "name": "week",
+          "role": "time",
+          "type": "isoWeek"
+        },
+        {
+          "name": "strain",
+          "role": "group",
+          "type": "string"
+        },
+        {
+          "name": "infections",
+          "role": "sample",
+          "type": "number"
+        }
+      ]
+    },
+    {
+      "file": "incidence_by_age.parquet",
+      "format": "application/vnd.apache.parquet",
+      "description": "Weekly incidence per 100,000 by age group and seed (weeks Tuesday to Monday, labelled by their last day).",
+      "columns": [
+        {
+          "name": "seed",
+          "role": "group",
+          "type": "string"
+        },
+        {
+          "name": "week_end",
+          "role": "time",
+          "type": "date"
+        },
+        {
+          "name": "age_group",
+          "role": "group",
+          "type": "string"
+        },
+        {
+          "name": "incidence_per_100k",
+          "role": "sample",
+          "type": "number"
+        }
+      ]
+    }
+  ],
+  "episerve:resources": {
+    "cpu": "8",
+    "memory": "24Gi",
+    "gpu": 0,
+    "network": true,
+    "typicalRuntimeSeconds": 7200
+  },
+  "episerve:documentation": {
+    "method": "MATSim Episim: agents follow the daily activity patterns of a MATSim/Senozon mobility model; infections happen in shared facilities and vehicles with an age- and progression-dependent model with seasonality and weather-driven outdoor fraction. Five strains over four seasons (A(H3N2), A(H1N1)pdm09, B/Victoria), cross-protection between seasons, imported infections shaped by the IfSG notifications and split by the FluNet sentinel, school holidays, and seasonal vaccination of the persons aged 60 and over.",
+    "intendedUse": "Scenario analysis of past influenza seasons in Cologne and Berlin (e.g. with and without vaccination, sensitivity to the transmissibility) and comparison with surveillance data. It is not an operational forecast: the period is fixed to 2022-09-26 to 2026-05-17. Besides the declared files a run writes run_info.json (config, image build, origin of every input), viewer.tar.gz (the covid-sim viewer package) and scenario/ (the generated config, policy and data files as run).",
+    "limitations": "25 % samples of the population. The import follows state-level notifications (NRW for Cologne), which are testing-driven; only their shape is used. Vaccination coverage comes from statutory-insurance claims data; the campaign timing is a placeholder. The mobility of a typical weekday, Saturday and Sunday is the same over all seasons. One simulation of all four seasons takes about an hour on 8 cores.",
+    "trainingData": "Calibrated by hand with the common factor gamma against the IfSG notifications and the ICOSARI SARI hospitalisations of the seasons 2022/23 to 2025/26.",
+    "references": [
+      "https://github.com/matsim-org/matsim-episim",
+      "https://github.com/matsim-org/matsim-episim-libs",
+      "https://doi.org/10.5281/zenodo.18197755"
+    ]
+  }
+}

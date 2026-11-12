@@ -1,0 +1,117 @@
+# Checks the model card, builds the image (matsim-episim of the commit in episim.ref plus src/), runs the tests and the
+# config check inside it, and publishes it to ghcr.io/the-episerve-consortium/model__prediction__influenza__matsim-episim,
+# where the model-runner of the platform pulls it.
+# Tags: latest and sha-<commit> for every push of main, the version for a v* tag (v0.1.0 -> v0.1.0 and latest).
+name: Build, test, and publish
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore: ['docs/**', '**/*.md']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  IMAGE: ghcr.io/the-episerve-consortium/model__prediction__influenza__matsim-episim
+
+jobs:
+  model-card:
+    # validates fdo.json against the EPISERVE model-card spec; kept separate, an invalid card does not stop the image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: The-EPISERVE-Consortium/episerve_specs@v0.4.0
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: episerve-model:ci
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Tests inside the image
+        run: |
+          docker run --rm --user root --workdir /opt/episim --entrypoint sh episerve-model:ci -c \
+            "pip install --no-cache-dir -q -r requirements-test.txt && ruff check src tests && python -m pytest -v"
+
+      - name: Container contract
+        # the image starts without arguments like on the platform; a bad config fails with ERROR: before simulating
+        run: |
+          docker run --rm --entrypoint cat episerve-model:ci /opt/episim/BUILD_INFO
+          mkdir -p work/input work/output && chmod -R 777 work
+          echo '{"city": "cologne", "prediction_length": 4, "seeds": 1}' > work/input/config.json
+          docker run --rm -v "$PWD/work:/work" episerve-model:ci --check-config /work/input/config.json
+          echo '{"city": "hamburg"}' > work/input/config.json
+          if docker run --rm -v "$PWD/work:/work" episerve-model:ci 2> err.txt; then
+            echo "expected the run to fail"; exit 1
+          fi
+          cat err.txt
+          grep -q '^ERROR: city must be one of' err.txt
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        if: github.event_name == 'push'
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
+            type=ref,event=tag
+
+      - name: Push
+        if: github.event_name == 'push'
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
+          cache-from: type=gha
+
+      - name: Summary
+        if: github.event_name == 'push'
+        run: |
+          {
+            echo "### Image"
+            echo '```'
+            echo "${{ env.IMAGE }}@${{ steps.push.outputs.digest }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
