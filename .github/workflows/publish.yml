@@ -76,12 +76,14 @@ jobs:
       - name: Dry run
         # the whole run except the simulation, with the Java generator inside the image, offline and with little memory
         run: |
+          # one folder per city: the container writes as uid 10001, so the runner cannot delete its files afterwards
           for city in cologne berlin; do
-            rm -rf work && mkdir -p work/input work/output && chmod -R 777 work
-            echo "{\"city\": \"$city\", \"prediction_length\": 4, \"vaccination\": false, \"dry_run\": true}" > work/input/config.json
-            docker run --rm --network none --memory 1g -v "$PWD/work:/work" episerve-model:ci
-            test -s work/output/run_info.json && test -s work/output/scenario/config.xml
-            ! grep -q 'module name="seasonalVaccination"' work/output/scenario/config.xml
+            w="dry-$city"
+            mkdir -p "$w/input" "$w/output" && chmod -R 777 "$w"
+            echo "{\"city\": \"$city\", \"prediction_length\": 4, \"vaccination\": false, \"dry_run\": true}" > "$w/input/config.json"
+            docker run --rm --network none --memory 1g -v "$PWD/$w:/work" episerve-model:ci
+            test -s "$w/output/run_info.json" && test -s "$w/output/scenario/config.xml"
+            ! grep -q 'module name="seasonalVaccination"' "$w/output/scenario/config.xml"
           done
 
       - name: Log in to GitHub Container Registry
