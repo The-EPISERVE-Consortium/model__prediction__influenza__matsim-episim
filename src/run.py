@@ -44,7 +44,7 @@ GENERATORS = {
     "berlin": ("org.matsim.episim.run.scenarios.berlin.GenerateInfluenzaConfig", "berlin-multiseason"),
 }
 
-DEFAULTS = {"prediction_length": MAX_WEEKS, "seeds": 2, "gamma": 1.0, "vaccination": True, "tasks": 1}
+DEFAULTS = {"prediction_length": MAX_WEEKS, "seeds": 2, "gamma": 1.0, "vaccination": True, "tasks": 1, "dry_run": False}
 
 
 class ConfigError(Exception):
@@ -87,8 +87,9 @@ def read_config(path: Path) -> dict:
             or not any(math.isclose(gamma, g, abs_tol=1e-9) for g in GAMMA_GRID):
         raise ConfigError(f"gamma must be a multiple of 0.05 from 0.05 to 1.50, got {gamma!r}")
     config["gamma"] = round(float(gamma), 2)
-    if not isinstance(config["vaccination"], bool):
-        raise ConfigError(f"vaccination must be true or false, got {config['vaccination']!r}")
+    for name in ("vaccination", "dry_run"):
+        if not isinstance(config[name], bool):
+            raise ConfigError(f"{name} must be true or false, got {config[name]!r}")
     return config
 
 
@@ -132,6 +133,15 @@ def main() -> int:
     java(generator, scenario_arg, *([] if config["vaccination"] else ["--without-vaccination"]), cwd=run_dir)
     check_vaccination(scenario / "config.xml", config["vaccination"])
 
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if config["dry_run"]:
+        # everything but the simulation: no events from the SVN, no network, seconds instead of hours
+        log("dry_run: config generated, simulation skipped")
+        copy_scenario(scenario, output_dir / "scenario")
+        write_run_info(output_dir, config, city, iterations, origin, started, {"dry_run": True})
+        log(f"done, output in {output_dir}")
+        return 0
+
     batch_args = ["--scenario", f"Scenarios/{city.folder}", "--seeds", str(config["seeds"]),
                   "--gamma", f"{config['gamma']:.2f}", "--tasks", str(config["tasks"])]
     if config["prediction_length"] < MAX_WEEKS:
@@ -144,19 +154,28 @@ def main() -> int:
         raise RuntimeError(f"no batch output below {run_dir / 'batch'}")
     batch = batch[-1]
 
-    output_dir.mkdir(parents=True, exist_ok=True)
     summary = outputs.write(batch / "output", city.district, output_dir)
     log(f"converted {summary['seeds']} seed(s), {summary['weeks']} weeks")
 
     # the covid-sim viewer package and the scenario as it was run, for inspection
     with tarfile.open(output_dir / "viewer.tar.gz", "w:gz") as tar:
         tar.add(batch / "output-vis-no-seeds", arcname="output-vis-no-seeds")
-    scenario_out = output_dir / "scenario"
-    scenario_out.mkdir(exist_ok=True)
+    copy_scenario(scenario, output_dir / "scenario")
+    write_run_info(output_dir, config, city, iterations, origin, started, summary)
+    log(f"done, output in {output_dir}")
+    return 0
+
+
+def copy_scenario(scenario: Path, target: Path) -> None:
+    """The generated config, policy and progression and the data files, as they were run."""
+    target.mkdir(parents=True, exist_ok=True)
     for f in sorted(scenario.iterdir()):
         if f.is_file() and f.suffix in (".xml", ".conf", ".yaml", ".tsv", ".csv"):
-            shutil.copy2(f, scenario_out / f.name)
+            shutil.copy2(f, target / f.name)
 
+
+def write_run_info(output_dir: Path, config: dict, city: prepare_inputs.City, iterations: int, origin: dict[str, str],
+                   started: datetime.datetime, summary: dict) -> None:
     (output_dir / "run_info.json").write_text(json.dumps({
         "model": "model__prediction__influenza__matsim-episim",
         "build": (APP / "BUILD_INFO").read_text(encoding="utf-8") if (APP / "BUILD_INFO").exists() else None,
@@ -169,8 +188,6 @@ def main() -> int:
         "finished": datetime.datetime.now(datetime.UTC).isoformat(),
         **summary,
     }, indent=2, ensure_ascii=False), encoding="utf-8")
-    log(f"done, output in {output_dir}")
-    return 0
 
 
 def check_config(path: Path) -> int:

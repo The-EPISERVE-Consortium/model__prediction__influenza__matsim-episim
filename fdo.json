@@ -80,11 +80,17 @@
         "maximum": 10,
         "default": 1,
         "description": "Simulations run in parallel. Each needs about 8 GB (Cologne) to 14 GB (Berlin) of memory."
+      },
+      "dry_run": {
+        "type": "boolean",
+        "default": false,
+        "description": "true checks a run without simulating: reads the inputs, rebuilds the scenario data, generates config, policy and progression and writes run_info.json and scenario/, but no predictions. Takes seconds, needs no network and little memory; for testing the platform and the inputs."
       }
     },
     "rules": [
       "The simulated period always starts on 2022-09-26; the input data do not move the start, they shape the import of infections and the vaccination.",
-      "tasks must not exceed seeds to be useful; memory has to cover tasks times the memory of one simulation."
+      "tasks must not exceed seeds to be useful; memory has to cover tasks times the memory of one simulation.",
+      "With dry_run true only run_info.json and scenario/ are written; predictions.tsv and the other declared outputs are missing."
     ]
   },
   "episerve:inputs": [

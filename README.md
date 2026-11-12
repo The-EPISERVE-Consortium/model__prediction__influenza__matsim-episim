@@ -44,6 +44,15 @@ there, at most 190 (up to 2026-05-17). The "forecast interval" is the spread ove
 | `gamma` | 1.0 | common calibration factor, 0.05 to 1.50 in steps of 0.05 |
 | `vaccination` | true | false runs the scenario without the seasonal vaccination of the persons aged 60 and over |
 | `tasks` | 1 | simulations in parallel; each needs about 8 GB (Cologne) to 14 GB (Berlin) |
+| `dry_run` | false | true runs everything but the simulation (see below) |
+
+### Dry run
+
+With `"dry_run": true` a run reads and checks the config, rebuilds the scenario data from the inputs, generates config,
+policy and progression with the Java generator, checks the vaccination switch, and writes `run_info.json` and `scenario/`.
+It does not simulate, so it needs no network (the events are not read) and little memory, and takes a few seconds, like
+the null model. `predictions.tsv` and the other outputs are not written. It is meant for testing the platform, the inputs
+and a new image; CI runs it for both cities with `--network none --memory 1g`.
 
 ## Inputs (all optional)
 
@@ -87,6 +96,12 @@ curl -X POST https://api.episerve.zib.de/model-runs \
     "config": {"city": "cologne", "prediction_length": 4, "seeds": 1}
   }'
 ```
+
+For a test of the platform alone, add `"dry_run": true` to the config: the run then ends in seconds.
+
+`POST /model-runs` returns the id of the Prefect flow run; `GET /model-runs/{run_id}` looks the run up by its QID in the
+catalogue, where it appears only after it has finished and has been synchronised, so the id of the POST answer is not found
+there. Look for the run in `GET /model-runs` by `model_name` instead.
 
 ## Local development
 

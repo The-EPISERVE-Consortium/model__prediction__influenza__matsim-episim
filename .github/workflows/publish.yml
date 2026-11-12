@@ -73,6 +73,17 @@ jobs:
           cat err.txt
           grep -q '^ERROR: city must be one of' err.txt
 
+      - name: Dry run
+        # the whole run except the simulation, with the Java generator inside the image, offline and with little memory
+        run: |
+          for city in cologne berlin; do
+            rm -rf work && mkdir -p work/input work/output && chmod -R 777 work
+            echo "{\"city\": \"$city\", \"prediction_length\": 4, \"vaccination\": false, \"dry_run\": true}" > work/input/config.json
+            docker run --rm --network none --memory 1g -v "$PWD/work:/work" episerve-model:ci
+            test -s work/output/run_info.json && test -s work/output/scenario/config.xml
+            ! grep -q 'module name="seasonalVaccination"' work/output/scenario/config.xml
+          done
+
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push'
         uses: docker/login-action@v3

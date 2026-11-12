@@ -28,7 +28,8 @@ def test_defaults_are_filled_in(tmp_path):
 
 
 def test_full_config(tmp_path):
-    raw = {"city": "berlin", "prediction_length": 33, "seeds": 3, "gamma": 0.85, "vaccination": False, "tasks": 2}
+    raw = {"city": "berlin", "prediction_length": 33, "seeds": 3, "gamma": 0.85, "vaccination": False, "tasks": 2,
+           "dry_run": True}
     assert run.read_config(config_file(tmp_path, raw)) == raw
 
 
@@ -52,6 +53,7 @@ def test_gamma_is_rounded_to_the_grid(tmp_path):
     ({"city": "cologne", "gamma": 1.55}, "gamma must be a multiple of 0.05"),
     ({"city": "cologne", "gamma": "1.0"}, "gamma must be a multiple of 0.05"),
     ({"city": "cologne", "vaccination": "no"}, "vaccination must be true or false"),
+    ({"city": "cologne", "dry_run": 1}, "dry_run must be true or false"),
 ])
 def test_bad_config(tmp_path, raw, message):
     with pytest.raises(run.ConfigError, match=None) as e:
