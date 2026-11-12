@@ -87,3 +87,47 @@ def test_unknown_argument():
     result = subprocess.run([sys.executable, str(Path(run.__file__)), "--fast"], capture_output=True, text=True)
     assert result.returncode == 1
     assert result.stderr.startswith("ERROR: unknown arguments ['--fast']")
+
+
+def viewer_package(root: Path, metadata: str) -> Path:
+    package = root / "output-vis-no-seeds"
+    (package / "summaries").mkdir(parents=True)
+    (package / "observed").mkdir()
+    (package / "metadata.yaml").write_text(metadata, encoding="utf-8")
+    (package / "_info.txt").write_text("RunId\tseed\n0\t4711\n", encoding="utf-8")
+    (package / "notes.md").write_text("notes", encoding="utf-8")
+    (package / "summaries" / "0.zip").write_bytes(b"PK")
+    (package / "observed" / "weekly.tsv").write_text("week\tcases\n", encoding="utf-8")
+    return package
+
+
+def test_viewer_package_is_copied_unpacked(tmp_path):
+    package = viewer_package(tmp_path / "batch", "zipFolder: summaries\ndefaultStartDate: 2022-09-26\ncity: Köln\n")
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "predictions.tsv").write_text("week\n", encoding="utf-8")
+    run.copy_viewer_package(package, out)
+
+    assert sorted(str(p.relative_to(out)) for p in out.rglob("*") if p.is_file()) == [
+        "_info.txt", "metadata.yaml", "notes.md", "observed/weekly.tsv", "predictions.tsv", "summaries/0.zip"]
+    metadata = (out / "metadata.yaml").read_text(encoding="utf-8")
+    assert metadata.endswith("city: Köln\ngraphStartDate: 2022-09-26\n")
+
+
+def test_viewer_package_keeps_an_existing_graph_start_date(tmp_path):
+    text = "graphStartDate: 2022-10-01\ndefaultStartDate: 2022-09-26\n"
+    package = viewer_package(tmp_path / "batch", text)
+    run.copy_viewer_package(package, tmp_path)
+    assert (tmp_path / "metadata.yaml").read_text(encoding="utf-8") == text
+
+
+def test_viewer_package_must_not_overwrite_model_outputs(tmp_path):
+    package = viewer_package(tmp_path / "batch", "defaultStartDate: 2022-09-26\n")
+    (package / "predictions.tsv").write_text("not ours", encoding="utf-8")
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "predictions.tsv").write_text("week\n", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="collides"):
+        run.copy_viewer_package(package, out)
+    with pytest.raises(RuntimeError, match="no viewer package"):
+        run.copy_viewer_package(tmp_path / "missing", out)

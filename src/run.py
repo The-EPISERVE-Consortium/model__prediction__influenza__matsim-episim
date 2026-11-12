@@ -21,10 +21,10 @@ import datetime
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import sys
-import tarfile
 from pathlib import Path
 
 import outputs
@@ -157,13 +157,37 @@ def main() -> int:
     summary = outputs.write(batch / "output", city.district, output_dir)
     log(f"converted {summary['seeds']} seed(s), {summary['weeks']} weeks")
 
-    # the covid-sim viewer package and the scenario as it was run, for inspection
-    with tarfile.open(output_dir / "viewer.tar.gz", "w:gz") as tar:
-        tar.add(batch / "output-vis-no-seeds", arcname="output-vis-no-seeds")
+    copy_viewer_package(batch / "output-vis-no-seeds", output_dir)
     copy_scenario(scenario, output_dir / "scenario")
     write_run_info(output_dir, config, city, iterations, origin, started, summary)
     log(f"done, output in {output_dir}")
     return 0
+
+
+def copy_viewer_package(package: Path, output_dir: Path) -> None:
+    """Copies the covid-sim viewer package unpacked into the root of the output.
+
+    The viewer finds an EPISERVE run by metadata.yaml at the root of the output and reads the other files (_info.txt,
+    summaries/*.zip, observed/, notes.md) relative to it. Its EPISERVE route also requires graphStartDate, which the
+    package of matsim-episim-libs does not write; it is set to defaultStartDate.
+    """
+    if not (package / "metadata.yaml").is_file():
+        raise RuntimeError(f"no viewer package in {package}")
+    for source in sorted(package.rglob("*")):
+        target = output_dir / source.relative_to(package)
+        if source.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+        elif target.exists():
+            raise RuntimeError(f"viewer package file {target.relative_to(output_dir)} collides with a model output")
+        else:
+            shutil.copy2(source, target)
+
+    metadata = output_dir / "metadata.yaml"
+    text = metadata.read_text(encoding="utf-8")
+    if not re.search(r"^graphStartDate:", text, re.MULTILINE):
+        start = re.search(r"^defaultStartDate:\s*(\S+)", text, re.MULTILINE)
+        if start:
+            metadata.write_text(text.rstrip("\n") + f"\ngraphStartDate: {start.group(1)}\n", encoding="utf-8")
 
 
 def copy_scenario(scenario: Path, target: Path) -> None:

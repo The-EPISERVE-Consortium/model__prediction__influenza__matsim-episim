@@ -75,7 +75,7 @@ the school holidays, the age table of the population, and the ICOSARI SARI serie
 | `infections_by_strain.parquet` | weekly new infections by transmission (without imports) by strain and seed, strains of the scenario only |
 | `incidence_by_age.parquet` | weekly incidence per 100,000 by age group and seed |
 | `run_info.json` | config, image build (including the matsim-episim commit), period and the origin of every input file |
-| `viewer.tar.gz` | the covid-sim viewer package (`output-vis-no-seeds`) |
+| `metadata.yaml`, `_info.txt`, `notes.md`, `summaries/`, `observed/` | the covid-sim viewer package (`output-vis-no-seeds` of the batch), unpacked at the root of the output so that episim-vis opens the run from EPISERVE; `graphStartDate` is added to `metadata.yaml` |
 | `scenario/` | config, policy, progression and the data files as they were run |
 
 ## Starting a run on EPISERVE
