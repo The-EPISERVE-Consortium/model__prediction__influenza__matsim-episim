@@ -41,7 +41,7 @@ there, at most 190 (up to 2026-05-17). The "forecast interval" is the spread ove
 | `city` | (required) | `cologne` (Scenarios/Cologne-multiseason) or `berlin` (Scenarios/Berlin-multiseason) |
 | `prediction_length` | 190 | weeks from 2022-09-26; 33 is the first season |
 | `seeds` | 2 | number of seeds (1 to 10), the first ones of the batch |
-| `gamma` | 1.0 | common calibration factor, 0.05 to 1.50 in steps of 0.05 |
+| `gamma` | 0.5 | common calibration factor, 0.05 to 1.50 in steps of 0.05; 0.5 is provisional (the calibration is not finished), 1.0 is the uncalibrated configuration and gives far more infections than observed |
 | `vaccination` | true | false runs the scenario without the seasonal vaccination of the persons aged 60 and over |
 | `tasks` | 1 | simulations in parallel; each needs about 8 GB (Cologne) to 14 GB (Berlin) |
 | `dry_run` | false | true runs everything but the simulation (see below) |

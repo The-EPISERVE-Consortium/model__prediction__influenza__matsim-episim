@@ -44,7 +44,7 @@ GENERATORS = {
     "berlin": ("org.matsim.episim.run.scenarios.berlin.GenerateInfluenzaConfig", "berlin-multiseason"),
 }
 
-DEFAULTS = {"prediction_length": MAX_WEEKS, "seeds": 2, "gamma": 1.0, "vaccination": True, "tasks": 1, "dry_run": False}
+DEFAULTS = {"prediction_length": MAX_WEEKS, "seeds": 2, "gamma": 0.5, "vaccination": True, "tasks": 1, "dry_run": False}
 
 
 class ConfigError(Exception):
