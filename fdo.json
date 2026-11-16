@@ -92,10 +92,9 @@
         "description": "true continues each seed from a snapshot instead of simulating it from 2022-09-26, so a run does not have to redo years another run already covers. Needs the snapshot/ output of a previous run (same city, same build) as this run's snapshot input, with the same or fewer seeds; gamma and vaccination are not restored from the snapshot and keep applying from the resumed day onward, so give them the same values as the previous run unless a deliberately diverging sensitivity case is wanted."
       },
       "snapshot_at": {
-        "type": ["integer", "null"],
+        "type": "integer",
         "minimum": 1,
         "maximum": 1329,
-        "default": null,
         "description": "With resume true, the day (1 to 1329, counted from 2022-09-26) to resume each seed from; the latest snapshot of the seed if omitted. A run only writes snapshots every 100 days, so most values find none. Needs resume true."
       },
       "keep_snapshots": {
@@ -294,7 +293,7 @@
         },
         {
           "name": "Hospitalisierungsinzidenz",
-          "role": "other",
+          "role": "target",
           "type": "number",
           "description": "Per 100,000."
         }

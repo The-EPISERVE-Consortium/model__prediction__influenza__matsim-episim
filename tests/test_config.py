@@ -102,7 +102,8 @@ def test_card_parameters_match_the_code():
     assert set(PARAMETERS) == set(run.DEFAULTS) | {"city"}
     assert CARD["episerve:parameters"]["required"] == ["city"]
     for name, default in run.DEFAULTS.items():
-        assert PARAMETERS[name]["default"] == default, name
+        # the card cannot declare a null default (model-card v1): an optional parameter without a value has none
+        assert PARAMETERS[name].get("default") == default, name
 
 
 def test_card_bounds_match_the_code():
