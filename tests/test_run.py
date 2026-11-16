@@ -59,6 +59,26 @@ def test_dry_run(platform, vaccination):
     assert set(info["inputs"].values()) == {"baked into the image"}
 
 
+def test_dry_run_with_fetch_external(platform, monkeypatch):
+    import test_external
+
+    work, _ = platform
+    fetcher, calls = test_external.fake()
+    monkeypatch.setattr(run.external, "http_get", fetcher)
+    config = {"city": "cologne", "prediction_length": 4, "dry_run": True, "fetch_external": True}
+    (work / "input" / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+    assert run.main() == 0
+    assert len(calls) == 3
+    out = work / "output"
+    assert sorted(p.name for p in out.iterdir()) == ["external", "run_info.json", "scenario"]
+    assert (out / "scenario" / "nrw-school-holidays-2022-26.tsv").is_file()
+    assert (out / "scenario" / "cologne-weather-2022-26.csv").is_file()
+    info = json.loads((out / "run_info.json").read_text(encoding="utf-8"))
+    assert info["inputs"]["cologne-weather-2022-26.csv"].startswith(run.external.OPEN_METEO)
+    assert info["inputs"]["nrw-ifsg-influenza-2022-26.tsv"] == "baked into the image"
+
+
 def test_bad_config_fails_before_any_work(platform):
     work, calls = platform
     (work / "input" / "config.json").write_text('{"city": "hamburg", "dry_run": true}', encoding="utf-8")

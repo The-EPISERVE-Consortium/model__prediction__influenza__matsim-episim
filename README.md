@@ -11,6 +11,7 @@ This repository is a thin adapter. It holds no model code: the image builds mats
 | [`episim.ref`](episim.ref) | matsim-episim repository and commit the image is built from |
 | [`src/run.py`](src/run.py) | container contract: reads `/work/input/config.json`, runs the scenario, writes `/work/output` |
 | [`src/prepare_inputs.py`](src/prepare_inputs.py) | rebuilds the scenario data files from the EPISERVE datasets passed as input |
+| [`src/external.py`](src/external.py) | with `fetch_external`: school holidays and weather from their public APIs, raw responses kept |
 | [`src/outputs.py`](src/outputs.py) | converts the batch output into the declared output files |
 | [`fdo.json`](fdo.json) | model card (EPISERVE model-card v1) |
 | [`.github/workflows/publish.yml`](.github/workflows/publish.yml) | card check, image build, tests, push to ghcr.io |
@@ -48,6 +49,7 @@ there, at most 190 (up to 2026-05-17). The "forecast interval" is the spread ove
 | `resume` | false | true continues each seed from a snapshot instead of simulating it from 2022-09-26 (see "Resuming from a snapshot" below) |
 | `snapshot_at` | null | with `resume`, the day (1 to 1329) to resume from; the latest snapshot of the seed if omitted |
 | `keep_snapshots` | false | true writes every seed's snapshot files into this run's `snapshot/` output, for a later `resume` |
+| `fetch_external` | false | true fetches the school holidays and the weather at run time instead of using the baked files (see "Holidays and weather from their APIs" below) |
 
 ### Dry run
 
@@ -88,7 +90,30 @@ resuming at or after `prediction_length`) fails before simulating, not after.
 
 The rebuild follows `Scenarios/Cologne-multiseason/build-reference-data.py` and `build-vaccination-data.py` of
 matsim-episim. Not taken from EPISERVE: the weather (Open-Meteo historical; the platform has Berlin only, without precipitation),
-the school holidays and the age table of the population.
+the school holidays and the age table of the population. The first two can be fetched from their APIs at run time instead.
+
+### Holidays and weather from their APIs (`fetch_external`)
+
+With `"fetch_external": true` [`src/external.py`](src/external.py) replaces two baked files of the scenario:
+
+| File | API | Request |
+|---|---|---|
+| `nrw-school-holidays-2022-26.tsv` / `berlin-school-holidays-2022-26.tsv` | [OpenHolidays](https://openholidaysapi.org) `/SchoolHolidays` | subdivision `DE-NW` or `DE-BE`, 2022-08-01 to 2026-05-31 in pieces of at most 1,095 days (the limit of the API) |
+| `cologne-weather-2022-26.csv` / `berlin-weather-2022-26.csv` | [Open-Meteo](https://open-meteo.com) Historical Weather `/v1/archive` | the request of the baked file: 50.94 N 6.96 E or 52.47 N 13.40 E, 2022-09-01 to 2026-05-31, `temperature_2m_max`, `precipitation_sum` |
+
+The holiday names are mapped to those of the baked files (Herbstferien `autumn`, Weihnachtsferien `christmas`, Winterferien
+`winter`, Osterferien `easter`, Sommerferien `summer`, Unterrichtsfreier Tag `bridge_day`; a one-day Pfingstferien is
+`whit_day` in NRW and `bridge_day` in Berlin); an unknown name fails the run.
+
+A live request has no dataset version on the platform, so every raw response is written to `external/` of the output and its
+URL, time of retrieval and sha256 to the `inputs` of `run_info.json`. A failed request fails the run, also a dry run, which
+then needs network; there is no silent fallback to the baked file. Once EPISERVE has datasets for holidays and weather they
+become inputs like the others and take precedence.
+
+Compared with the baked files (2026-11-16): the holidays of NRW are identical; Berlin has one more day, 2025-06-10
+(Pfingstferien), missing in the baked file. The weather is the same grid cell, but Open-Meteo has revised the reanalysis
+since the baked files were retrieved (2026-09-30 and 2026-10-01): tmax differs on about 16 % of the days (mostly by 0.1,
+at most 2.0 deg C), precipitation on 22 to 29 % (at most 4.4 mm).
 
 ## Outputs
 
@@ -102,6 +127,7 @@ the school holidays and the age table of the population.
 | `metadata.yaml`, `_info.txt`, `notes.md`, `summaries/`, `observed/` | the covid-sim viewer package (`output-vis-no-seeds` of the batch), unpacked at the root of the output so that episim-vis opens the run from EPISERVE; `graphStartDate` is added to `metadata.yaml` |
 | `scenario/` | config, policy, progression and the data files as they were run |
 | `snapshot/` | only with `keep_snapshots`: every seed's snapshot files, for `resume` by a later run (see "Resuming from a snapshot") |
+| `external/` | only with `fetch_external`: the raw responses of OpenHolidays and Open-Meteo |
 
 ## Starting a run on EPISERVE
 

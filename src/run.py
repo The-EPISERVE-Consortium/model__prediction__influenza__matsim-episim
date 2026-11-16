@@ -11,7 +11,8 @@ The run is a forecast in the sense of the platform only: the simulation always s
 39/2022) and runs prediction_length weeks of the past four seasons (at most 190, up to 2026-05-17). The output is the
 simulated weekly epidemic, one series per seed, summarised as mean and 10th/90th percentile over the seeds.
 
-Steps: rebuild the scenario data from the EPISERVE inputs (prepare_inputs), write config, progression and policy
+Steps: rebuild the scenario data from the EPISERVE inputs (prepare_inputs) and, with fetch_external, the holidays and the
+weather from their public APIs (external), write config, progression and policy
 (GenerateInfluenzaConfig), simulate (RunInfluenzaGamma), convert (outputs). The mobility (events) and the population are
 read from the public VSP SVN at run time, so the container needs internet access.
 """
@@ -27,6 +28,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import external
 import outputs
 import prepare_inputs
 
@@ -45,7 +47,7 @@ GENERATORS = {
 }
 
 DEFAULTS = {"prediction_length": MAX_WEEKS, "seeds": 2, "gamma": 0.5, "vaccination": True, "tasks": 1, "dry_run": False,
-            "resume": False, "snapshot_at": None, "keep_snapshots": False}
+            "resume": False, "snapshot_at": None, "keep_snapshots": False, "fetch_external": False}
 
 
 class ConfigError(Exception):
@@ -88,7 +90,7 @@ def read_config(path: Path) -> dict:
             or not any(math.isclose(gamma, g, abs_tol=1e-9) for g in GAMMA_GRID):
         raise ConfigError(f"gamma must be a multiple of 0.05 from 0.05 to 1.50, got {gamma!r}")
     config["gamma"] = round(float(gamma), 2)
-    for name in ("vaccination", "dry_run", "resume", "keep_snapshots"):
+    for name in ("vaccination", "dry_run", "resume", "keep_snapshots", "fetch_external"):
         if not isinstance(config[name], bool):
             raise ConfigError(f"{name} must be true or false, got {config[name]!r}")
 
@@ -138,6 +140,9 @@ def main() -> int:
     scenario = run_dir / "Scenarios" / city.folder
 
     origin = prepare_inputs.prepare(input_dir, scenario, city)
+    if config["fetch_external"]:
+        # holidays and weather from their public APIs; raw responses kept in the output (see external.py)
+        origin.update(external.fetch(scenario, city, output_dir / "external"))
     for file, source in origin.items():
         log(f"{file}: {source}")
 

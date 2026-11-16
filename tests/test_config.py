@@ -29,7 +29,7 @@ def test_defaults_are_filled_in(tmp_path):
 
 def test_full_config(tmp_path):
     raw = {"city": "berlin", "prediction_length": 33, "seeds": 3, "gamma": 0.85, "vaccination": False, "tasks": 2,
-           "dry_run": True, "resume": True, "snapshot_at": 700, "keep_snapshots": True}
+           "dry_run": True, "resume": True, "snapshot_at": 700, "keep_snapshots": True, "fetch_external": True}
     assert run.read_config(config_file(tmp_path, raw)) == raw
 
 
