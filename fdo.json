@@ -85,12 +85,30 @@
         "type": "boolean",
         "default": false,
         "description": "true checks a run without simulating: reads the inputs, rebuilds the scenario data, generates config, policy and progression and writes run_info.json and scenario/, but no predictions. Takes seconds, needs no network and little memory; for testing the platform and the inputs."
+      },
+      "resume": {
+        "type": "boolean",
+        "default": false,
+        "description": "true continues each seed from a snapshot instead of simulating it from 2022-09-26, so a run does not have to redo years another run already covers. Needs the snapshot/ output of a previous run (same city, same build) as this run's snapshot input, with the same or fewer seeds; gamma and vaccination are not restored from the snapshot and keep applying from the resumed day onward, so give them the same values as the previous run unless a deliberately diverging sensitivity case is wanted."
+      },
+      "snapshot_at": {
+        "type": ["integer", "null"],
+        "minimum": 1,
+        "maximum": 1329,
+        "default": null,
+        "description": "With resume true, the day (1 to 1329, counted from 2022-09-26) to resume each seed from; the latest snapshot of the seed if omitted. A run only writes snapshots every 100 days, so most values find none. Needs resume true."
+      },
+      "keep_snapshots": {
+        "type": "boolean",
+        "default": false,
+        "description": "true writes every seed's snapshot files into this run's snapshot/ output, so a later run can resume from it with resume true. Off by default because the snapshots can be large (a copy of the whole output directory at every 100 days of the run)."
       }
     },
     "rules": [
       "The simulated period always starts on 2022-09-26; the input data do not move the start, they shape the import of infections and the vaccination.",
       "tasks must not exceed seeds to be useful; memory has to cover tasks times the memory of one simulation.",
-      "With dry_run true only run_info.json and scenario/ are written; predictions.tsv and the other declared outputs are missing."
+      "With dry_run true only run_info.json and scenario/ are written; predictions.tsv and the other declared outputs are missing.",
+      "resume needs a snapshot input (the snapshot/ output of a previous run with keep_snapshots true); snapshot_at needs resume true."
     ]
   },
   "episerve:inputs": [

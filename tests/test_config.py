@@ -29,7 +29,7 @@ def test_defaults_are_filled_in(tmp_path):
 
 def test_full_config(tmp_path):
     raw = {"city": "berlin", "prediction_length": 33, "seeds": 3, "gamma": 0.85, "vaccination": False, "tasks": 2,
-           "dry_run": True}
+           "dry_run": True, "resume": True, "snapshot_at": 700, "keep_snapshots": True}
     assert run.read_config(config_file(tmp_path, raw)) == raw
 
 
@@ -54,6 +54,12 @@ def test_gamma_is_rounded_to_the_grid(tmp_path):
     ({"city": "cologne", "gamma": "1.0"}, "gamma must be a multiple of 0.05"),
     ({"city": "cologne", "vaccination": "no"}, "vaccination must be true or false"),
     ({"city": "cologne", "dry_run": 1}, "dry_run must be true or false"),
+    ({"city": "cologne", "resume": "yes"}, "resume must be true or false"),
+    ({"city": "cologne", "keep_snapshots": 1}, "keep_snapshots must be true or false"),
+    ({"city": "cologne", "snapshot_at": 700}, "snapshot_at needs resume"),
+    ({"city": "cologne", "resume": True, "snapshot_at": 0}, "snapshot_at must be an integer from 1 to 1329"),
+    ({"city": "cologne", "resume": True, "snapshot_at": 1330}, "snapshot_at must be an integer from 1 to 1329"),
+    ({"city": "cologne", "resume": True, "snapshot_at": True}, "snapshot_at must be an integer"),
 ])
 def test_bad_config(tmp_path, raw, message):
     with pytest.raises(run.ConfigError, match=None) as e:

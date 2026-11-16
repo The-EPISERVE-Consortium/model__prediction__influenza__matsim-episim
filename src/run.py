@@ -44,7 +44,8 @@ GENERATORS = {
     "berlin": ("org.matsim.episim.run.scenarios.berlin.GenerateInfluenzaConfig", "berlin-multiseason"),
 }
 
-DEFAULTS = {"prediction_length": MAX_WEEKS, "seeds": 2, "gamma": 0.5, "vaccination": True, "tasks": 1, "dry_run": False}
+DEFAULTS = {"prediction_length": MAX_WEEKS, "seeds": 2, "gamma": 0.5, "vaccination": True, "tasks": 1, "dry_run": False,
+            "resume": False, "snapshot_at": None, "keep_snapshots": False}
 
 
 class ConfigError(Exception):
@@ -87,9 +88,16 @@ def read_config(path: Path) -> dict:
             or not any(math.isclose(gamma, g, abs_tol=1e-9) for g in GAMMA_GRID):
         raise ConfigError(f"gamma must be a multiple of 0.05 from 0.05 to 1.50, got {gamma!r}")
     config["gamma"] = round(float(gamma), 2)
-    for name in ("vaccination", "dry_run"):
+    for name in ("vaccination", "dry_run", "resume", "keep_snapshots"):
         if not isinstance(config[name], bool):
             raise ConfigError(f"{name} must be true or false, got {config[name]!r}")
+
+    snapshot_at = config["snapshot_at"]
+    if snapshot_at is not None:
+        if isinstance(snapshot_at, bool) or not isinstance(snapshot_at, int) or not 1 <= snapshot_at < MAX_WEEKS * 7:
+            raise ConfigError(f"snapshot_at must be an integer from 1 to {MAX_WEEKS * 7 - 1}, got {snapshot_at!r}")
+        if not config["resume"]:
+            raise ConfigError("snapshot_at needs resume: true")
     return config
 
 
@@ -117,6 +125,10 @@ def main() -> int:
     city = prepare_inputs.CITIES[config["city"]]
     iterations = config["prediction_length"] * 7
     log(f"config {config}: {iterations} days from {START} to {START + datetime.timedelta(days=iterations - 1)}")
+
+    snapshot_input = input_dir / "snapshot"
+    if config["resume"] and not snapshot_input.is_dir():
+        raise ConfigError(f"resume is true but {snapshot_input} is missing")
 
     # a writable copy of the scenarios; the generator reads and writes relative to the working directory
     if run_dir.exists():
@@ -146,6 +158,10 @@ def main() -> int:
                   "--gamma", f"{config['gamma']:.2f}", "--tasks", str(config["tasks"])]
     if config["prediction_length"] < MAX_WEEKS:
         batch_args += ["--iterations", str(iterations)]
+    if config["resume"]:
+        batch_args += ["--snapshot-dir", str(snapshot_input)]
+        if config["snapshot_at"] is not None:
+            batch_args += ["--snapshot-at", str(config["snapshot_at"])]
     java("org.matsim.episim.run.batch.RunInfluenzaGamma", *batch_args, cwd=run_dir,
          env={"EPISIM_OUTPUT": str(run_dir / "batch")})
 
@@ -157,11 +173,31 @@ def main() -> int:
     summary = outputs.write(batch / "output", city.district, output_dir)
     log(f"converted {summary['seeds']} seed(s), {summary['weeks']} weeks")
 
+    if config["keep_snapshots"]:
+        kept = copy_snapshots(batch / "output", output_dir / "snapshot")
+        log(f"kept {kept} snapshot(s) in {output_dir / 'snapshot'} for a later resume")
+
     copy_viewer_package(batch / "output-vis-no-seeds", output_dir)
     copy_scenario(scenario, output_dir / "scenario")
     write_run_info(output_dir, config, city, iterations, origin, started, summary)
     log(f"done, output in {output_dir}")
     return 0
+
+
+def copy_snapshots(run_output: Path, target: Path) -> int:
+    """Copies every seed's episim-snapshot-*.zip (RunInfluenzaGamma --snapshot-dir) into target/<seed folder>/, so a
+    later run can resume from this one with "resume": true and this output's snapshot/ as its /work/input/snapshot."""
+    count = 0
+    for folder in sorted(p for p in run_output.iterdir() if p.is_dir()):
+        snapshots = sorted(folder.glob("episim-snapshot-*.zip"))
+        if not snapshots:
+            continue
+        destination = target / folder.name
+        destination.mkdir(parents=True, exist_ok=True)
+        for snapshot in snapshots:
+            shutil.copy2(snapshot, destination / snapshot.name)
+            count += 1
+    return count
 
 
 def copy_viewer_package(package: Path, output_dir: Path) -> None:

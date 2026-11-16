@@ -81,6 +81,43 @@ def test_generator_ignoring_the_vaccination_switch(platform, monkeypatch):
         run.main()
 
 
+def test_resume_requires_snapshot_input(platform):
+    work, calls = platform
+    config = {"city": "cologne", "dry_run": True, "resume": True}
+    (work / "input" / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+    with pytest.raises(run.ConfigError, match="resume is true but"):
+        run.main()
+    assert calls == []
+
+
+def test_resume_with_snapshot_input_passes(platform):
+    work, calls = platform
+    (work / "input" / "snapshot" / "seed_4711-gamma_0.50").mkdir(parents=True)
+    config = {"city": "cologne", "dry_run": True, "resume": True}
+    (work / "input" / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+    assert run.main() == 0
+
+
+def test_copy_snapshots(tmp_path):
+    run_output = tmp_path / "batch-output"
+    seed_a = run_output / "seed_4711-gamma_0.50"
+    seed_a.mkdir(parents=True)
+    (seed_a / "episim-snapshot-100-2023-01-03.zip").write_bytes(b"PK")
+    (seed_a / "episim-snapshot-200-2023-04-13.zip").write_bytes(b"PK")
+    (seed_a / "infectionEvents.txt").write_text("not a snapshot", encoding="utf-8")
+    seed_b = run_output / "seed_815-gamma_0.50"
+    seed_b.mkdir(parents=True)  # no snapshot written yet for this seed
+
+    target = tmp_path / "output" / "snapshot"
+    assert run.copy_snapshots(run_output, target) == 2
+
+    assert sorted(p.name for p in target.iterdir()) == ["seed_4711-gamma_0.50"]
+    assert sorted(p.name for p in (target / "seed_4711-gamma_0.50").iterdir()) == [
+        "episim-snapshot-100-2023-01-03.zip", "episim-snapshot-200-2023-04-13.zip"]
+
+
 def test_unknown_argument():
     import subprocess
     import sys

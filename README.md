@@ -45,6 +45,9 @@ there, at most 190 (up to 2026-05-17). The "forecast interval" is the spread ove
 | `vaccination` | true | false runs the scenario without the seasonal vaccination of the persons aged 60 and over |
 | `tasks` | 1 | simulations in parallel; each needs about 8 GB (Cologne) to 14 GB (Berlin) |
 | `dry_run` | false | true runs everything but the simulation (see below) |
+| `resume` | false | true continues each seed from a snapshot instead of simulating it from 2022-09-26 (see "Resuming from a snapshot" below) |
+| `snapshot_at` | null | with `resume`, the day (1 to 1329) to resume from; the latest snapshot of the seed if omitted |
+| `keep_snapshots` | false | true writes every seed's snapshot files into this run's `snapshot/` output, for a later `resume` |
 
 ### Dry run
 
@@ -53,6 +56,26 @@ policy and progression with the Java generator, checks the vaccination switch, a
 It does not simulate, so it needs no network (the events are not read) and little memory, and takes a few seconds, like
 the null model. `predictions.tsv` and the other outputs are not written. It is meant for testing the platform, the inputs
 and a new image; CI runs it for both cities with `--network none --memory 1g`.
+
+## Resuming from a snapshot
+
+Optional, off by default: a run always simulates the whole requested period from 2022-09-26, same as before. To skip
+years another run already covers:
+
+1. Run A with `"keep_snapshots": true`. It writes `/work/output/snapshot/seed_<seed>-gamma_<gamma>/episim-snapshot-*.zip`
+   for every seed, one file per 100 days of the run (the generator's fixed `snapshotInterval`); three of the thirteen
+   fall in the gaps between seasons (days 300, 700 and 1000).
+2. Give Run B's `/work/input/snapshot` the `snapshot/` output of Run A (the same folder layout, seed folders included),
+   and set `"resume": true`. Run B then continues each of its seeds from the latest snapshot in its folder (or the one
+   named by `snapshot_at`, if a specific day is wanted, such as 1000 for the start of 2025/26) instead of simulating the
+   earlier days again; `prediction_length` (and `seeds`) still name the end (and the seeds) of Run B, now reached partly
+   from the snapshot.
+
+Needs the **same city, build (`episim.ref`) and seeds as Run A** (or a subset of its seeds) and, to continue the same
+scenario rather than deliberately diverge from it, the same `gamma` and `vaccination`: the snapshot carries the
+simulated state (infections, immunity, progression) but not the config, so the values of Run B apply from the resumed
+day onward, same as matsim-episim's own `--snapshot-dir` of `RunInfluenzaGamma`. A mismatch (missing seed, wrong build,
+resuming at or after `prediction_length`) fails before simulating, not after.
 
 ## Inputs (all optional)
 
@@ -77,6 +100,7 @@ the school holidays, the age table of the population, and the ICOSARI SARI serie
 | `run_info.json` | config, image build (including the matsim-episim commit), period and the origin of every input file |
 | `metadata.yaml`, `_info.txt`, `notes.md`, `summaries/`, `observed/` | the covid-sim viewer package (`output-vis-no-seeds` of the batch), unpacked at the root of the output so that episim-vis opens the run from EPISERVE; `graphStartDate` is added to `metadata.yaml` |
 | `scenario/` | config, policy, progression and the data files as they were run |
+| `snapshot/` | only with `keep_snapshots`: every seed's snapshot files, for `resume` by a later run (see "Resuming from a snapshot") |
 
 ## Starting a run on EPISERVE
 
