@@ -7,6 +7,7 @@ EPISERVE platform instead of the raw files:
   IfSG_Influenzafaelle.parquet        Q8399965930733  laboratory-confirmed notifications -> <region>-ifsg-influenza-2022-26.tsv
   VIW_FNT.parquet                     Q4242040001970  WHO FluNet sentinel, Germany       -> influenza-sentinel-weekly.csv
   KVIS_Impfquoten_Erwachsene.parquet  Q0602352424740  RKI KV-Impfsurveillance            -> vaccination-coverage-2022-26.tsv
+  SARI-Hospitalisierungsinzidenz.parquet  Q0522578154235  RKI ICOSARI, Germany           -> germany-icosari-influenza-sari-2022-26.tsv
 """
 from __future__ import annotations
 
@@ -19,6 +20,8 @@ import pandas as pd
 IFSG_FILE = "IfSG_Influenzafaelle.parquet"
 FLUNET_FILE = "VIW_FNT.parquet"
 KVIS_FILE = "KVIS_Impfquoten_Erwachsene.parquet"
+SARI_FILE = "SARI-Hospitalisierungsinzidenz.parquet"
+SARI_TARGET = "germany-icosari-influenza-sari-2022-26.tsv"
 
 # the horizon of the scenarios plus one week on each side for the smoothing of the import
 FIRST_WEEK, LAST_WEEK = "2022-W38", "2026-W21"
@@ -91,6 +94,32 @@ def write_ifsg(df: pd.DataFrame, city: City, target: Path, source: str) -> None:
                   "week\tcases\n")
         for w in weeks:
             out.write(f"{w}\t{int(series[w])}\n")
+
+
+def write_sari(df: pd.DataFrame, target: Path, source: str) -> None:
+    """The observed series next to the model (scenario.yaml, plot hospNewCas); not an input of the simulation."""
+    for column in ("Kalenderwoche", "Altersgruppe", "SARI", "Hospitalisierungsinzidenz"):
+        if column not in df.columns:
+            raise InputError(f"{SARI_FILE}: column {column} missing")
+    d = df[(df.Altersgruppe == "00+") & (df.SARI == "Influenza")].dropna(subset=["Hospitalisierungsinzidenz"])
+    series = d.set_index("Kalenderwoche").Hospitalisierungsinzidenz
+    if series.index.duplicated().any():
+        raise InputError(f"{SARI_FILE}: more than one row per week for Altersgruppe 00+, SARI Influenza")
+    weeks = iso_weeks(FIRST_WEEK, LAST_WEEK)
+    missing = [w for w in weeks if w not in series.index]
+    if missing:
+        raise InputError(f"{SARI_FILE}: Altersgruppe 00+, SARI Influenza lacks the weeks {missing[0]} to {missing[-1]} "
+                         f"({len(missing)} of {len(weeks)})")
+    with open(target, "w", encoding="utf-8") as out:
+        out.write("# Weekly influenza SARI hospitalisation incidence per 100,000, Germany, all ages (00+), ICOSARI hospital sentinel.\n"
+                  "# SARI = ICD-10 J09-J22 main diagnosis; the influenza subgroup additionally has J10 in main or secondary diagnosis.\n"
+                  f"# Source: {source}, file {SARI_FILE}, from Robert Koch-Institut, \"SARI-Hospitalisierungsinzidenz\", CC BY 4.0.\n"
+                  "# week = ISO week of hospital admission (Kalenderwoche); incidence = Hospitalisierungsinzidenz, rows Altersgruppe 00+,\n"
+                  "#   SARI Influenza. An order-of-magnitude check only: national, not the city. Recent weeks are still revised.\n"
+                  "# Built by src/prepare_inputs.py (model__prediction__influenza__matsim-episim) from the input of the EPISERVE run.\n"
+                  "week\tincidence\n")
+        for w in weeks:
+            out.write(f"{w}\t{float(series[w]):.1f}\n")
 
 
 def write_sentinel(df: pd.DataFrame, target: Path, source: str) -> None:
@@ -221,4 +250,11 @@ def prepare(input_dir: Path, scenario: Path, city: City) -> dict[str, str]:
         origin["vaccination-coverage-2022-26.tsv"] = f"/work/input/{KVIS_FILE}"
     else:
         origin["vaccination-coverage-2022-26.tsv"] = "baked into the image"
+
+    path = input_dir / SARI_FILE
+    if path.is_file():
+        write_sari(pd.read_parquet(path), scenario / SARI_TARGET, source)
+        origin[SARI_TARGET] = f"/work/input/{SARI_FILE}"
+    else:
+        origin[SARI_TARGET] = "baked into the image"
     return origin

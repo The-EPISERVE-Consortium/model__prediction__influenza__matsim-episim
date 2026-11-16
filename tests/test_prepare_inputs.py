@@ -121,6 +121,39 @@ def test_write_vaccination_errors(tmp_path):
         pi.write_vaccination(incomplete, COLOGNE, scenario, "test")
 
 
+def sari(weeks: list[str] | None = None) -> pd.DataFrame:
+    weeks = weeks if weeks is not None else pi.iso_weeks(pi.FIRST_WEEK, pi.LAST_WEEK)
+    rows = [{"Saison": "x", "Kalenderwoche": w, "Altersgruppe": "00+", "SARI": "Influenza",
+             "Hospitalisierungsinzidenz": i / 10} for i, w in enumerate(weeks)]
+    # other ages and SARI groups must be ignored
+    rows += [{"Saison": "x", "Kalenderwoche": weeks[0], "Altersgruppe": "0-4", "SARI": "Influenza",
+              "Hospitalisierungsinzidenz": 99.0},
+             {"Saison": "x", "Kalenderwoche": weeks[0], "Altersgruppe": "00+", "SARI": "Gesamt",
+              "Hospitalisierungsinzidenz": 99.0}]
+    return pd.DataFrame(rows)
+
+
+def test_write_sari(tmp_path):
+    target = tmp_path / pi.SARI_TARGET
+    pi.write_sari(sari(), target, "test")
+    rows = data_rows(target)
+    weeks = pi.iso_weeks(pi.FIRST_WEEK, pi.LAST_WEEK)
+    assert rows[0] == "week\tincidence"
+    assert rows[1] == f"{pi.FIRST_WEEK}\t0.0"
+    assert rows[2] == f"{weeks[1]}\t0.1"
+    assert len(rows) == len(weeks) + 1
+
+
+def test_write_sari_errors(tmp_path):
+    weeks = pi.iso_weeks(pi.FIRST_WEEK, pi.LAST_WEEK)
+    with pytest.raises(pi.InputError, match="lacks the weeks"):
+        pi.write_sari(sari(weeks[2:]), tmp_path / "x.tsv", "test")
+    with pytest.raises(pi.InputError, match="column SARI missing"):
+        pi.write_sari(sari().drop(columns="SARI"), tmp_path / "x.tsv", "test")
+    with pytest.raises(pi.InputError, match="more than one row per week"):
+        pi.write_sari(pd.concat([sari(), sari()]), tmp_path / "x.tsv", "test")
+
+
 def test_prepare_uses_inputs_when_present(tmp_path):
     inputs, scenario = tmp_path / "input", scenario_with_ages(tmp_path / "scenario")
     inputs.mkdir()
@@ -129,8 +162,11 @@ def test_prepare_uses_inputs_when_present(tmp_path):
 
     ifsg().to_parquet(inputs / pi.IFSG_FILE)
     kvis(["2022/23"]).to_parquet(inputs / pi.KVIS_FILE)
+    sari().to_parquet(inputs / pi.SARI_FILE)
     origin = pi.prepare(inputs, scenario, COLOGNE)
     assert origin == {COLOGNE.ifsg_file: f"/work/input/{pi.IFSG_FILE}",
                       "influenza-sentinel-weekly.csv": "baked into the image",
-                      "vaccination-coverage-2022-26.tsv": f"/work/input/{pi.KVIS_FILE}"}
+                      "vaccination-coverage-2022-26.tsv": f"/work/input/{pi.KVIS_FILE}",
+                      pi.SARI_TARGET: f"/work/input/{pi.SARI_FILE}"}
+    assert (scenario / pi.SARI_TARGET).is_file()
     assert (scenario / COLOGNE.ifsg_file).is_file()

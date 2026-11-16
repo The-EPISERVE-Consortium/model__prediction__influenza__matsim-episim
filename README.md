@@ -84,10 +84,11 @@ resuming at or after `prediction_length`) fails before simulating, not after.
 | `IfSG_Influenzafaelle.parquet` | Q8399965930733, RKI laboratory-confirmed influenza | `nrw-ifsg-influenza-2022-26.tsv` (Region_Id 5) or `berlin-ifsg-influenza-2022-26.tsv` (Region_Id 11): shape of the import |
 | `VIW_FNT.parquet` | Q4242040001970, WHO FluNet Germany | `influenza-sentinel-weekly.csv`: split of the import between the A subtype and B/Victoria |
 | `KVIS_Impfquoten_Erwachsene.parquet` | Q0602352424740, RKI KV-Impfsurveillance | `vaccination-coverage-2022-26.tsv`: coverage of SK Köln (5315) or SK Berlin (11000) |
+| `SARI-Hospitalisierungsinzidenz.parquet` | Q0522578154235, RKI ICOSARI | `germany-icosari-influenza-sari-2022-26.tsv`: influenza SARI incidence of Germany (00+), the observed series plotted next to the hospitalisations of the model; not an input of the simulation |
 
 The rebuild follows `Scenarios/Cologne-multiseason/build-reference-data.py` and `build-vaccination-data.py` of
-matsim-episim. Not taken from EPISERVE: the weather (Open-Meteo historical; the platform only has a forecast for Berlin),
-the school holidays, the age table of the population, and the ICOSARI SARI series, which is only plotted next to the model.
+matsim-episim. Not taken from EPISERVE: the weather (Open-Meteo historical; the platform has Berlin only, without precipitation),
+the school holidays and the age table of the population.
 
 ## Outputs
 
@@ -115,7 +116,8 @@ curl -X POST https://api.episerve.zib.de/model-runs \
     "input_data_files": [
       ["https://doip.episerve.zib.de/doip/retrieve/Q8399965930733/IfSG_Influenzafaelle.parquet", "IfSG_Influenzafaelle.parquet"],
       ["https://doip.episerve.zib.de/doip/retrieve/Q4242040001970/VIW_FNT.parquet", "VIW_FNT.parquet"],
-      ["https://doip.episerve.zib.de/doip/retrieve/Q0602352424740/KVIS_Impfquoten_Erwachsene.parquet", "KVIS_Impfquoten_Erwachsene.parquet"]
+      ["https://doip.episerve.zib.de/doip/retrieve/Q0602352424740/KVIS_Impfquoten_Erwachsene.parquet", "KVIS_Impfquoten_Erwachsene.parquet"],
+      ["https://doip.episerve.zib.de/doip/retrieve/Q0522578154235/SARI-Hospitalisierungsinzidenz.parquet", "SARI-Hospitalisierungsinzidenz.parquet"]
     ],
     "config": {"city": "cologne", "prediction_length": 4, "seeds": 1}
   }'

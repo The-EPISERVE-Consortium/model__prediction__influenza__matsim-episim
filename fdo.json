@@ -263,6 +263,42 @@
           "nullable": true
         }
       ]
+    },
+    {
+      "file": "SARI-Hospitalisierungsinzidenz.parquet",
+      "format": "application/vnd.apache.parquet",
+      "required": false,
+      "description": "EPISERVE dataset Q0522578154235 (RKI ICOSARI, SARI hospitalisation incidence). The weekly influenza SARI incidence of Germany (all ages) is the observed series written next to the hospitalisations of the model (observed/, viewer); it does not enter the simulation. Without it the extract baked into the image is used.",
+      "columns": [
+        {
+          "name": "Kalenderwoche",
+          "role": "time",
+          "type": "isoWeek",
+          "description": "Week of hospital admission; 2022-W38 to 2026-W21 must be present."
+        },
+        {
+          "name": "Altersgruppe",
+          "role": "filter",
+          "type": "string",
+          "requiredValues": [
+            "00+"
+          ]
+        },
+        {
+          "name": "SARI",
+          "role": "filter",
+          "type": "string",
+          "requiredValues": [
+            "Influenza"
+          ]
+        },
+        {
+          "name": "Hospitalisierungsinzidenz",
+          "role": "other",
+          "type": "number",
+          "description": "Per 100,000."
+        }
+      ]
     }
   ],
   "episerve:outputs": [

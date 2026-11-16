@@ -116,5 +116,5 @@ def test_card_bounds_match_the_code():
 
 def test_card_inputs_match_the_code():
     files = [i["file"] for i in CARD["episerve:inputs"]]
-    assert files == [prepare_inputs.IFSG_FILE, prepare_inputs.FLUNET_FILE, prepare_inputs.KVIS_FILE]
+    assert files == [prepare_inputs.IFSG_FILE, prepare_inputs.FLUNET_FILE, prepare_inputs.KVIS_FILE, prepare_inputs.SARI_FILE]
     assert all(not i["required"] for i in CARD["episerve:inputs"])
