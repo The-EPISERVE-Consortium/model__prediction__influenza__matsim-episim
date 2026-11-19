@@ -12,9 +12,9 @@ The run is a forecast in the sense of the platform only: the simulation always s
 simulated weekly epidemic, one series per seed, summarised as mean and 10th/90th percentile over the seeds.
 
 Steps: rebuild the scenario data from the EPISERVE inputs (prepare_inputs) and, with fetch_external, the holidays and the
-weather from their public APIs (external), write config, progression and policy
-(GenerateInfluenzaConfig), simulate (RunInfluenzaGamma), convert (outputs). The mobility (events) and the population are
-read from the public VSP SVN at run time, so the container needs internet access.
+weather from their public APIs (external), with resume_from fetch the snapshots of a previous run from DOIP (snapshots),
+write config, progression and policy (GenerateInfluenzaConfig), simulate (RunInfluenzaGamma), convert (outputs). The
+mobility (events) and the population are read from the public VSP SVN at run time, so the container needs internet access.
 """
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ from pathlib import Path
 import external
 import outputs
 import prepare_inputs
+import snapshots
 
 APP = Path(os.environ.get("EPISIM_HOME", "/opt/episim"))
 WORK = Path(os.environ.get("EPISERVE_WORK", "/work"))
@@ -47,7 +48,8 @@ GENERATORS = {
 }
 
 DEFAULTS = {"prediction_length": MAX_WEEKS, "seeds": 2, "gamma": 0.5, "vaccination": True, "tasks": 1, "dry_run": False,
-            "resume": False, "snapshot_at": None, "keep_snapshots": False, "fetch_external": False}
+            "resume": False, "snapshot_at": None, "keep_snapshots": False, "fetch_external": False,
+            "resume_from": None}
 
 
 class ConfigError(Exception):
@@ -100,6 +102,13 @@ def read_config(path: Path) -> dict:
             raise ConfigError(f"snapshot_at must be an integer from 1 to {MAX_WEEKS * 7 - 1}, got {snapshot_at!r}")
         if not config["resume"]:
             raise ConfigError("snapshot_at needs resume: true")
+
+    resume_from = config["resume_from"]
+    if resume_from is not None:
+        if not isinstance(resume_from, str) or not snapshots.QID.match(resume_from):
+            raise ConfigError(f"resume_from must be the QID of an EPISERVE run such as Q1794860351655, got {resume_from!r}")
+        if not config["resume"]:
+            raise ConfigError("resume_from needs resume: true")
     return config
 
 
@@ -129,7 +138,11 @@ def main() -> int:
     log(f"config {config}: {iterations} days from {START} to {START + datetime.timedelta(days=iterations - 1)}")
 
     snapshot_input = input_dir / "snapshot"
-    if config["resume"] and not snapshot_input.is_dir():
+    if config["resume_from"] is not None:
+        if snapshot_input.exists():
+            raise ConfigError(f"resume_from is set and {snapshot_input} exists too; give only one of the two")
+        snapshot_input = run_dir / "snapshot"  # filled from DOIP below, after run_dir is created
+    elif config["resume"] and not snapshot_input.is_dir():
         raise ConfigError(f"resume is true but {snapshot_input} is missing")
 
     # a writable copy of the scenarios; the generator reads and writes relative to the working directory
@@ -143,6 +156,10 @@ def main() -> int:
     if config["fetch_external"]:
         # holidays and weather from their public APIs; raw responses kept in the output (see external.py)
         origin.update(external.fetch(scenario, city, output_dir / "external"))
+    if config["resume_from"] is not None:
+        # the snapshots of a previous run, from the public DOIP repository instead of an input (see snapshots.py)
+        build = (APP / "BUILD_INFO").read_text(encoding="utf-8") if (APP / "BUILD_INFO").exists() else None
+        origin.update(snapshots.fetch(config, iterations, snapshot_input, build, log=log))
     for file, source in origin.items():
         log(f"{file}: {source}")
 

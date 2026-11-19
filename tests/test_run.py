@@ -120,6 +120,34 @@ def test_resume_with_snapshot_input_passes(platform):
     assert run.main() == 0
 
 
+def test_dry_run_with_resume_from(platform, monkeypatch):
+    import test_snapshots
+
+    work, calls = platform
+    opener, requests = test_snapshots.fake(info=test_snapshots.run_info(city="cologne", build="episimCommit=test\n"))
+    monkeypatch.setattr(run.snapshots, "http_open", opener)
+    config = {"city": "cologne", "dry_run": True, "resume": True, "resume_from": test_snapshots.QID, "snapshot_at": 1000}
+    (work / "input" / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+    assert run.main() == 0
+    assert len(requests) == 4
+    for folder in test_snapshots.FOLDERS:
+        assert (work / "run" / "snapshot" / folder / "episim-snapshot-1000-2025-06-21.zip").is_file()
+    info = json.loads((work / "output" / "run_info.json").read_text(encoding="utf-8"))
+    entries = [k for k in info["inputs"] if k.startswith("snapshot/")]
+    assert len(entries) == 2
+
+
+def test_resume_from_and_snapshot_input_exclude_each_other(platform):
+    work, calls = platform
+    (work / "input" / "snapshot").mkdir()
+    config = {"city": "cologne", "dry_run": True, "resume": True, "resume_from": "Q1"}
+    (work / "input" / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    with pytest.raises(run.ConfigError, match="give only one of the two"):
+        run.main()
+    assert calls == []
+
+
 def test_copy_snapshots(tmp_path):
     run_output = tmp_path / "batch-output"
     seed_a = run_output / "seed_4711-gamma_0.50"

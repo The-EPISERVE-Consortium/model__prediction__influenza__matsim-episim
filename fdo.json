@@ -89,7 +89,7 @@
       "resume": {
         "type": "boolean",
         "default": false,
-        "description": "true continues each seed from a snapshot instead of simulating it from 2022-09-26, so a run does not have to redo years another run already covers. Needs the snapshot/ output of a previous run (same city, same build) as this run's snapshot input, with the same or fewer seeds; gamma and vaccination are not restored from the snapshot and keep applying from the resumed day onward, so give them the same values as the previous run unless a deliberately diverging sensitivity case is wanted."
+        "description": "true continues each seed from a snapshot instead of simulating it from 2022-09-26, so a run does not have to redo years another run already covers. Needs the snapshot/ output of a previous run (same city, same build, the same or more seeds): resume_from with the QID of that run, or that output as this run's snapshot input; gamma and vaccination are not restored from the snapshot and keep applying from the resumed day onward, so give them the same values as the previous run unless a deliberately diverging sensitivity case is wanted."
       },
       "snapshot_at": {
         "type": "integer",
@@ -106,6 +106,11 @@
         "type": "boolean",
         "default": false,
         "description": "true fetches the school holidays (OpenHolidays API) and the daily weather (Open-Meteo Historical Weather API, maximum temperature and precipitation) of the city at run time instead of using the files baked into the image; EPISERVE has no datasets for them yet. The raw responses are written to external/ of the output and their URL, time and sha256 to run_info.json. Needs network, also in a dry run; a failed request fails the run."
+      },
+      "resume_from": {
+        "type": "string",
+        "pattern": "^Q[0-9]+$",
+        "description": "With resume true, the QID of a previous EPISERVE run of the same city and build with keep_snapshots true (e.g. Q1794860351655). The run downloads that run's snapshots from the public DOIP repository itself, one per seed folder (the day of snapshot_at or the latest), instead of reading a snapshot input; URL, size and sha256 of every file go into run_info.json. Fails before simulating if that run is of another city or matsim-episim build, has fewer seeds or no snapshot of the day. Needs network, also in a dry run."
       }
     },
     "rules": [
@@ -113,7 +118,7 @@
       "tasks must not exceed seeds to be useful; memory has to cover tasks times the memory of one simulation.",
       "With dry_run true only run_info.json and scenario/ are written; predictions.tsv and the other declared outputs are missing.",
       "fetch_external true replaces the baked holiday and weather files by the answers of OpenHolidays and Open-Meteo (raw responses in external/); without it they are the files of the pinned matsim-episim commit.",
-      "resume needs a snapshot input (the snapshot/ output of a previous run with keep_snapshots true); snapshot_at needs resume true."
+      "resume needs the snapshots of a previous run with keep_snapshots true: resume_from with its QID (downloaded from DOIP by the run), or its snapshot/ output as the snapshot input, not both; snapshot_at and resume_from need resume true."
     ]
   },
   "episerve:inputs": [

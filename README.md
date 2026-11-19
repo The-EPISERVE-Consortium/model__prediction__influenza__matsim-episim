@@ -12,6 +12,7 @@ This repository is a thin adapter. It holds no model code: the image builds mats
 | [`src/run.py`](src/run.py) | container contract: reads `/work/input/config.json`, runs the scenario, writes `/work/output` |
 | [`src/prepare_inputs.py`](src/prepare_inputs.py) | rebuilds the scenario data files from the EPISERVE datasets passed as input |
 | [`src/external.py`](src/external.py) | with `fetch_external`: school holidays and weather from their public APIs, raw responses kept |
+| [`src/snapshots.py`](src/snapshots.py) | with `resume_from`: the snapshots of a previous run, downloaded from DOIP by its QID |
 | [`src/outputs.py`](src/outputs.py) | converts the batch output into the declared output files |
 | [`fdo.json`](fdo.json) | model card (EPISERVE model-card v1) |
 | [`.github/workflows/publish.yml`](.github/workflows/publish.yml) | card check, image build, tests, push to ghcr.io |
@@ -21,6 +22,8 @@ This repository is a thin adapter. It holds no model code: the image builds mats
 1. Reads `config.json` (see below) and copies the scenarios of the image into `/work/run`.
 2. Rebuilds the data files of the scenario from the EPISERVE datasets in `/work/input`
    ([`prepare_inputs.py`](src/prepare_inputs.py)); a dataset that is not passed keeps the file of the pinned commit.
+   With `fetch_external` the holidays and the weather come from their APIs, with `resume_from` the snapshots of a
+   previous run from DOIP.
 3. Writes config, progression and policy with `GenerateInfluenzaConfig` (`--without-vaccination` if `vaccination` is
    false) and checks that the vaccination module is present or absent accordingly.
 4. Simulates with `RunInfluenzaGamma` from 2022-09-26 for `prediction_length` weeks.
@@ -50,6 +53,7 @@ there, at most 190 (up to 2026-05-17). The "forecast interval" is the spread ove
 | `snapshot_at` | null | with `resume`, the day (1 to 1329) to resume from; the latest snapshot of the seed if omitted |
 | `keep_snapshots` | false | true writes every seed's snapshot files into this run's `snapshot/` output, for a later `resume` |
 | `fetch_external` | false | true fetches the school holidays and the weather at run time instead of using the baked files (see "Holidays and weather from their APIs" below) |
+| `resume_from` | none | with `resume`, the QID of a previous run whose snapshots the run downloads from DOIP itself (see "Resuming from a snapshot" below) |
 
 ### Dry run
 
@@ -67,8 +71,9 @@ years another run already covers:
 1. Run A with `"keep_snapshots": true`. It writes `/work/output/snapshot/seed_<seed>-gamma_<gamma>/episim-snapshot-*.zip`
    for every seed, one file per 100 days of the run (the generator's fixed `snapshotInterval`); three of the thirteen
    fall in the gaps between seasons (days 300, 700 and 1000).
-2. Give Run B's `/work/input/snapshot` the `snapshot/` output of Run A (the same folder layout, seed folders included),
-   and set `"resume": true`. Run B then continues each of its seeds from the latest snapshot in its folder (or the one
+2. Set Run B's `"resume": true` and `"resume_from"` to the QID of Run A (see below), or give Run B's
+   `/work/input/snapshot` the `snapshot/` output of Run A (the same folder layout, seed folders included). Run B then
+   continues each of its seeds from the latest snapshot in its folder (or the one
    named by `snapshot_at`, if a specific day is wanted, such as 1000 for the start of 2025/26) instead of simulating the
    earlier days again; `prediction_length` (and `seeds`) still name the end (and the seeds) of Run B, now reached partly
    from the snapshot.
@@ -78,6 +83,25 @@ scenario rather than deliberately diverge from it, the same `gamma` and `vaccina
 simulated state (infections, immunity, progression) but not the config, so the values of Run B apply from the resumed
 day onward, same as matsim-episim's own `--snapshot-dir` of `RunInfluenzaGamma`. A mismatch (missing seed, wrong build,
 resuming at or after `prediction_length`) fails before simulating, not after.
+
+### `resume_from`: the snapshots straight from DOIP
+
+The platform's `input_data_files` is not needed for a resume: with `"resume_from": "<QID of Run A>"` the run itself
+([`src/snapshots.py`](src/snapshots.py)) reads the component list of Run A from
+`https://doip.episerve.zib.de/doip/retrieve/<QID>` and Run A's `run_info.json`, checks city, matsim-episim build
+(`episimCommit` of `BUILD_INFO`) and number of seeds, and downloads one snapshot per seed folder, of day `snapshot_at` or
+the latest one, into `/work/run/snapshot/`. Only these files are downloaded (about 220 MB each for Berlin), not the
+thirteen of every seed. DOIP cuts a response after about 15 seconds (some 70 MB), so a file is continued with Range
+requests until it has the announced size; a shorter file fails the run. URL, size and sha256 of every file go into `inputs` of `run_info.json`; a different `gamma` or
+`vaccination` than Run A is logged. Needs network, also in a dry run, which downloads and checks the snapshots without
+simulating.
+
+A resume for the season after the horizon needs a longer horizon first; up to then a resumed run ends on 2026-05-17
+like any other.
+
+```json
+{"city": "berlin", "seeds": 2, "resume": true, "resume_from": "Q1794860351655", "snapshot_at": 1300}
+```
 
 ## Inputs (all optional)
 

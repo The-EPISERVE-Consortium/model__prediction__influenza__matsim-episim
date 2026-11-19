@@ -29,7 +29,8 @@ def test_defaults_are_filled_in(tmp_path):
 
 def test_full_config(tmp_path):
     raw = {"city": "berlin", "prediction_length": 33, "seeds": 3, "gamma": 0.85, "vaccination": False, "tasks": 2,
-           "dry_run": True, "resume": True, "snapshot_at": 700, "keep_snapshots": True, "fetch_external": True}
+           "dry_run": True, "resume": True, "snapshot_at": 700, "keep_snapshots": True, "fetch_external": True,
+           "resume_from": "Q1794860351655"}
     assert run.read_config(config_file(tmp_path, raw)) == raw
 
 
@@ -60,6 +61,9 @@ def test_gamma_is_rounded_to_the_grid(tmp_path):
     ({"city": "cologne", "resume": True, "snapshot_at": 0}, "snapshot_at must be an integer from 1 to 1329"),
     ({"city": "cologne", "resume": True, "snapshot_at": 1330}, "snapshot_at must be an integer from 1 to 1329"),
     ({"city": "cologne", "resume": True, "snapshot_at": True}, "snapshot_at must be an integer"),
+    ({"city": "cologne", "resume_from": "Q1794860351655"}, "resume_from needs resume"),
+    ({"city": "cologne", "resume": True, "resume_from": "1794860351655"}, "resume_from must be the QID"),
+    ({"city": "cologne", "resume": True, "resume_from": 1794860351655}, "resume_from must be the QID"),
 ])
 def test_bad_config(tmp_path, raw, message):
     with pytest.raises(run.ConfigError, match=None) as e:
