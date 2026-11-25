@@ -93,9 +93,10 @@
       },
       "snapshot_at": {
         "type": "integer",
-        "minimum": 1,
+        "default": 0,
+        "minimum": 0,
         "maximum": 1329,
-        "description": "With resume true, the day (1 to 1329, counted from 2022-09-26) to resume each seed from; the latest snapshot of the seed if omitted. A run only writes snapshots every 100 days, so most values find none. Needs resume true."
+        "description": "With resume true, the day (1 to 1329, counted from 2022-09-26) to resume each seed from; 0 (the default) takes the latest snapshot of the seed. A run only writes snapshots every 100 days, so most values find none. Needs resume true."
       },
       "keep_snapshots": {
         "type": "boolean",
@@ -109,8 +110,9 @@
       },
       "resume_from": {
         "type": "string",
-        "pattern": "^Q[0-9]+$",
-        "description": "With resume true, the QID of a previous EPISERVE run of the same city and build with keep_snapshots true (e.g. Q1794860351655). The run downloads that run's snapshots from the public DOIP repository itself, one per seed folder (the day of snapshot_at or the latest), instead of reading a snapshot input; URL, size and sha256 of every file go into run_info.json. Fails before simulating if that run is of another city or matsim-episim build, has fewer seeds or no snapshot of the day. Needs network, also in a dry run."
+        "pattern": "^(Q[0-9]+)?$",
+        "default": "",
+        "description": "Empty (the default): no previous run, the snapshots come from a snapshot input if resume is true. With resume true, the QID of a previous EPISERVE run of the same city and build with keep_snapshots true (e.g. Q1794860351655). The run downloads that run's snapshots from the public DOIP repository itself, one per seed folder (the day of snapshot_at or the latest), instead of reading a snapshot input; URL, size and sha256 of every file go into run_info.json. Fails before simulating if that run is of another city or matsim-episim build, has fewer seeds or no snapshot of the day. Needs network, also in a dry run."
       }
     },
     "rules": [

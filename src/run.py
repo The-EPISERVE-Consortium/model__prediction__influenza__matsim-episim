@@ -96,6 +96,12 @@ def read_config(path: Path) -> dict:
         if not isinstance(config[name], bool):
             raise ConfigError(f"{name} must be true or false, got {config[name]!r}")
 
+    # the card's defaults 0 and "" mean "not set", like null or leaving the key out
+    if config["snapshot_at"] == 0 and not isinstance(config["snapshot_at"], bool):
+        config["snapshot_at"] = None
+    if config["resume_from"] == "":
+        config["resume_from"] = None
+
     snapshot_at = config["snapshot_at"]
     if snapshot_at is not None:
         if isinstance(snapshot_at, bool) or not isinstance(snapshot_at, int) or not 1 <= snapshot_at < MAX_WEEKS * 7:

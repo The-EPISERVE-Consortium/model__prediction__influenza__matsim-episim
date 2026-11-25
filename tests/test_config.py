@@ -27,6 +27,14 @@ def test_defaults_are_filled_in(tmp_path):
     assert config == {"city": "cologne", **run.DEFAULTS}
 
 
+
+def test_card_defaults_mean_not_set(tmp_path):
+    """The platform may fill in the card's defaults; snapshot_at 0 and resume_from "" are then the same as leaving them out."""
+    card_defaults = {name: spec["default"] for name, spec in PARAMETERS.items() if "default" in spec}
+    assert card_defaults["snapshot_at"] == 0 and card_defaults["resume_from"] == ""
+    config = run.read_config(config_file(tmp_path, {"city": "cologne", **card_defaults}))
+    assert config == {"city": "cologne", **run.DEFAULTS}
+
 def test_full_config(tmp_path):
     raw = {"city": "berlin", "prediction_length": 33, "seeds": 3, "gamma": 0.85, "vaccination": False, "tasks": 2,
            "dry_run": True, "resume": True, "snapshot_at": 700, "keep_snapshots": True, "fetch_external": True,
@@ -58,7 +66,7 @@ def test_gamma_is_rounded_to_the_grid(tmp_path):
     ({"city": "cologne", "resume": "yes"}, "resume must be true or false"),
     ({"city": "cologne", "keep_snapshots": 1}, "keep_snapshots must be true or false"),
     ({"city": "cologne", "snapshot_at": 700}, "snapshot_at needs resume"),
-    ({"city": "cologne", "resume": True, "snapshot_at": 0}, "snapshot_at must be an integer from 1 to 1329"),
+    ({"city": "cologne", "resume": True, "snapshot_at": -1}, "snapshot_at must be an integer from 1 to 1329"),
     ({"city": "cologne", "resume": True, "snapshot_at": 1330}, "snapshot_at must be an integer from 1 to 1329"),
     ({"city": "cologne", "resume": True, "snapshot_at": True}, "snapshot_at must be an integer"),
     ({"city": "cologne", "resume_from": "Q1794860351655"}, "resume_from needs resume"),
@@ -105,9 +113,9 @@ def test_check_config_cli(tmp_path):
 def test_card_parameters_match_the_code():
     assert set(PARAMETERS) == set(run.DEFAULTS) | {"city"}
     assert CARD["episerve:parameters"]["required"] == ["city"]
+    unset = {"snapshot_at": 0, "resume_from": ""}  # the card cannot declare null (model-card v1); read_config maps these to None
     for name, default in run.DEFAULTS.items():
-        # the card cannot declare a null default (model-card v1): an optional parameter without a value has none
-        assert PARAMETERS[name].get("default") == default, name
+        assert PARAMETERS[name]["default"] == (unset[name] if default is None else default), name
 
 
 def test_card_bounds_match_the_code():

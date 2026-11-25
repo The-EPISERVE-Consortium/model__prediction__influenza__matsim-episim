@@ -50,10 +50,10 @@ there, at most 190 (up to 2026-05-17). The "forecast interval" is the spread ove
 | `tasks` | 1 | simulations in parallel; each needs about 8 GB (Cologne) to 14 GB (Berlin) |
 | `dry_run` | false | true runs everything but the simulation (see below) |
 | `resume` | false | true continues each seed from a snapshot instead of simulating it from 2022-09-26 (see "Resuming from a snapshot" below) |
-| `snapshot_at` | null | with `resume`, the day (1 to 1329) to resume from; the latest snapshot of the seed if omitted |
+| `snapshot_at` | 0 | with `resume`, the day (1 to 1329) to resume from; 0 takes the latest snapshot of the seed |
 | `keep_snapshots` | false | true writes every seed's snapshot files into this run's `snapshot/` output, for a later `resume` |
 | `fetch_external` | false | true fetches the school holidays and the weather at run time instead of using the baked files (see "Holidays and weather from their APIs" below) |
-| `resume_from` | none | with `resume`, the QID of a previous run whose snapshots the run downloads from DOIP itself (see "Resuming from a snapshot" below) |
+| `resume_from` | `""` | with `resume`, the QID of a previous run whose snapshots the run downloads from DOIP itself (see "Resuming from a snapshot" below) |
 
 ### Dry run
 
